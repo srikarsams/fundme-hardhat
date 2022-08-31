@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FundMe DApp</title>
+
+  <style>
+    .status {
+      width: 16px;
+      height: 16px;
+      border-radius: 100px;
+      background-color: red;
+      position: absolute;
+      top: 8px;
+      right: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <button class="connection">Connect</button>
+  <button class="get-balance">Get Balance</button>
+  <button class="withdraw">Withdraw</button>
+  <input type="text" value="0.1" />
+  <button class="fund">Fund</button>
+  <div class="output"></div>
+  <div class="status"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.0/ethers.umd.min.js"
+    integrity="sha512-+Ftowzj6zmwHlez4gpQxd7QQUzK/ocgu10pukN3Pyqblni7yJ9r/WTpNHoYKL4DGOp5givxSUZjJcVY7Az9OAQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+
+    const ABI = [
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "priceFeedAddress",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+      },
+      {
+        "inputs": [],
+        "name": "FundMe__NotOwner",
+        "type": "error"
+      },
+      {
+        "inputs": [],
+        "name": "MINIMUM_USD",
+        "outputs": [
+          {
+            "internalType": "uint256",
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          }
+        ],
+        "name": "addressToAmountFunded",
+        "outputs": [
+          {
+            "internalType": "uint256",
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "fund",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "uint256",
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "name": "funders",
+        "outputs": [
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "i_owner",
+        "outputs": [
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "priceFeed",
+        "outputs": [
+          {
+            "internalType": "contract AggregatorV3Interface",
+            "name": "",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "withdraw",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+      }
+    ]
+    const FUNDME_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+    const connectionEl = document.querySelector('.connection')
+    const balanceEl = document.querySelector('.get-balance')
+    const withdrawEl = document.querySelector('.withdraw')
+    const fundEl = document.querySelector('.fund')
+    const inputEl = document.querySelector("input")
+    const outputEl = document.querySelector(".output")
+    const statusEl = document.querySelector(".status")
+
+    async function connect(e) {
+      if (window.ethereum) {
+        console.log("Metamask found")
+        await window.ethereum.request({
+          method: "eth_requestAccounts"
+        })
+        console.log("connected")
+        connectionEl.style.display = "none";
+        statusEl.style.backgroundColor = "#1daa1d";
+      }
+    }
+
+    connect()
+
+    async function getBalance() {
+      const provider = new ethers.ethers.providers.Web3Provider(window.ethereum)
+      const balance = await provider.getBalance(FUNDME_ADDRESS)
+      console.log("Contract balance is", ethers.ethers.utils.formatEther(balance), "ETH")
+    }
+
+    connectionEl.addEventListener("click", connect)
+    fundEl.addEventListener("click", fund)
+    withdrawEl.addEventListener("click", withdraw)
+    balanceEl.addEventListener("click", getBalance)
+
+    async function fund() {
+      const provider = new ethers.ethers.providers.Web3Provider(window.ethereum)
+      const signer = provider.getSigner()
+      const contract = new ethers.ethers.Contract(FUNDME_ADDRESS, ABI, signer)
+      try {
+        const txResponse = await contract.fund({
+          value: ethers.utils.parseEther(inputEl.value)
+        })
+        await lookForTransactionMine(txResponse, provider);
+        console.log("Funded")
+        window.e = provider
+      } catch (error) {
+        console.log(error)
+      }
+    }
+
+    async function withdraw() {
+      const provider = new ethers.ethers.providers.Web3Provider(window.ethereum)
+      const signer = provider.getSigner()
+      const contract = new ethers.ethers.Contract(FUNDME_ADDRESS, ABI, signer)
+      try {
+
+        const txResponse = await contract.withdraw({
+          value: ethers.utils.parseEther(inputEl.value)
+        })
+        await lookForTransactionMine(txResponse, provider)
+        console.log("Withdrawl done!!")
+      } catch (error) {
+        console.log(error)
+      }
+    }
+
+    async function lookForTransactionMine(txResponse, provider) {
+      console.log("Waiting for tx to mine...")
+      return new Promise((res, rej) => {
+        provider.once(txResponse.hash, function (transactionReceipt) {
+          console.log("Mined with tx receipt confirmations:", transactionReceipt.confirmations)
+          res()
+        })
+      })
+    }
+  </script>
+
+</body>
+
+</html>
